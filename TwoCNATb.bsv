@@ -54,6 +54,7 @@ module mkTbTwoCNA();
 	
     //test cleanAccel()
     Reg#(Bit#(32)) clean <- mkReg(0);
+    Reg#(Bit#(32)) count<- mkReg(0);
 	//count the number of cycles
 	rule cycle_count;
 		cycles <= cycles + 1;
@@ -63,12 +64,21 @@ module mkTbTwoCNA();
 		isInit <= False;	
 		nna.initHorizontal(kernel);	
 	endrule	
-	rule request(!isInit);
-        currVec[0] <= operations[0][requests];		
-        currVec[1] <= operations[1][requests];		
-        currVec[2] <= operations[2][requests];		
-        nna.request(readVReg(currVec));	
-		requests <= requests+1;
+	rule request(!isInit && clean==0);
+        if(requests>= 0 && requests <=8) begin
+            currVec[0] <= operations[0][requests];		
+            currVec[1] <= operations[1][requests];		
+            currVec[2] <= operations[2][requests];
+            nna.request(readVReg(currVec));	
+		    requests <= requests+1;
+            count <= count + 1;
+        end
+        else begin
+            nna.cleanAccel();
+            clean <= 1;
+            requests <= 0;
+            isInit <= True;
+        end
 	endrule	
 	
 	rule respond(!isInit);
@@ -77,25 +87,16 @@ module mkTbTwoCNA();
 
 	endrule	
 	
-	rule finish(requests==10);
+	rule refresh(clean == 1);
 		$display("Total number of cycles needed: %d",cycles);
 		$display("Resetting...Starting over...");
-        
-        isInit <= True;
-        nna.cleanAccel();
-        requests <= 0;
-        clean <= 1;
+        currVec[0] <= 0;		
+        currVec[1] <= 0;		
+        currVec[2] <= 0;
+        clean <= 0;
 	endrule
-    
-    rule cleanUp(clean == 1 && requests < 11);
-        currVec[0] <= operations[0][requests];		
-        currVec[1] <= operations[1][requests];		
-        currVec[2] <= operations[2][requests];		
-        nna.request(readVReg(currVec));	
-		requests <= requests+1;
-
-    endrule
-    rule finish2(requests==10 && clean == 1);
+   
+    rule finish(count==20);
         $finish(0); 
     endrule
     

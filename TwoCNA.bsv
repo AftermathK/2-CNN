@@ -87,6 +87,10 @@ module mkTwoCNA(TwoCNA#(operandType, kernelSize,streamSize)) provisos (Bits#(ope
 
     //clear() each FIFO
     method Action cleanAccel();
+        
+	    if(currWait == fromInteger(valueOf(WAIT_TIME))) begin
+			currWait <= 0;
+		end		                
         //clear the horizontal stream's FIFOs
         for(Integer i=0; i<valueOf(streamSize);i=i+1) begin
             horizontalStream[i].clear();
@@ -95,6 +99,7 @@ module mkTwoCNA(TwoCNA#(operandType, kernelSize,streamSize)) provisos (Bits#(ope
         Integer currPower = valueOf(kernelSize)*valueOf(kernelSize);
 	    Integer addR = currPower-3; //how far will we have to do allow a level to add all the numbers
         //clear the tree of FIFOs 
+        
         for(Integer i=0; i<depthSize; i=i+1) begin
             for(Integer j=0; j <= addR; j=j+3) begin
                 adderTree[i][j].clear(); 
@@ -132,9 +137,9 @@ module mkTwoCNA(TwoCNA#(operandType, kernelSize,streamSize)) provisos (Bits#(ope
 		end	
 	endmethod	
 	method Action request(Vector#(kernelSize, operandType) req);
-		horizontalStream[2].enq(req[0]);  
-        horizontalStream[5].enq(req[1]);  
-		horizontalStream[8].enq(req[2]);  
+        for(Integer i=0; i<valueOf(kernelSize); i=i+1) begin
+            horizontalStream[(i+1)*valueOf(kernelSize)-1].enq(req[i]);  
+        end
     endmethod
 
     method ActionValue#(operandType) response();
