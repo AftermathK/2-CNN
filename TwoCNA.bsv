@@ -5,6 +5,7 @@ import FIFOF::*;
 typedef 4 WAIT_TIME;
 //streamSize must always be the product of the kernel's dimensions
 interface TwoCNA#(type operandType, numeric type kernelSize, numeric type streamSize);
+    method Action cleanAccel(); 
     method Action initHorizontal(Vector#(kernelSize, Vector#(kernelSize, operandType)) inputKernel); 
 	method  operandType isReady();	
 	method  operandType hasInit();	
@@ -83,7 +84,27 @@ module mkTwoCNA(TwoCNA#(operandType, kernelSize,streamSize)) provisos (Bits#(ope
             currLeaf = currLeaf+1;
         end
     end 
-                    
+
+    //clear() each FIFO
+    method Action cleanAccel();
+        //clear the horizontal stream's FIFOs
+        for(Integer i=0; i<valueOf(streamSize);i=i+1) begin
+            horizontalStream[i].clear();
+        end
+                
+        Integer currPower = valueOf(kernelSize)*valueOf(kernelSize);
+	    Integer addR = currPower-3; //how far will we have to do allow a level to add all the numbers
+        //clear the tree of FIFOs 
+        for(Integer i=0; i<depthSize; i=i+1) begin
+            for(Integer j=0; j <= addR; j=j+3) begin
+                adderTree[i][j].clear(); 
+                adderTree[i][j+1].clear(); 
+                adderTree[i][j+2].clear(); 
+            end
+	        currPower = currPower/3;
+	        addR = currPower-3;
+        end 
+    endmethod
 	//method for initiating variables
 	method Action initHorizontal(Vector#(kernelSize, Vector#(kernelSize, operandType)) kernelInput);
 		writeVReg(kernel,kernelInput);

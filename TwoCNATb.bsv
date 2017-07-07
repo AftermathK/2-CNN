@@ -29,21 +29,6 @@ module mkTbTwoCNA();
 
 	//vector of correct outputs	
 	Vector#(3,Vector#(4, OperandType)) correctOutputs = newVector;	
-    /*
-    operations[0][0] = 0;
-    operations[0][1] = 0;
-    operations[0][2] = 0;
-    operations[0][3] = 0;
-    operations[0][4] = 0;
-    operations[0][5] = 0;
-    
-    operations[1][0] = 1;
-    operations[1][1] = 5;
-    operations[1][2] = 2;
-    operations[1][3] = 3;
-    operations[1][4] = 0;
-    operations[1][5] = 0;
-    */
 
     operations[0][0] = 8;
     operations[0][1] = 7;
@@ -65,39 +50,10 @@ module mkTbTwoCNA();
     operations[2][3] = 0;
     operations[2][4] = 0;
     operations[2][5] = 0;
-    /* 
-    operations[2][0] = 3;
-    operations[2][1] = 3;
-    operations[2][2] = 9;
-    operations[2][3] = 1;
-    operations[2][4] = 0;
-    operations[2][5] = 0;
-    */ 
-    /*	
-	for(Integer i=0;i<3;i=i+1) begin
-	    for(Integer j=0; j<3; j=j+1) begin	
-            operations[i][j] = fromInteger(i*j);
-        end	
-    end
-    */	
 	TwoCNA#(OperandType, KERNEL_SIZE, KERNEL_DIM) nna <- mkTwoCNA;
 	
-	//test cases
-	//initialize the vector to 0
-	/*
-    for(Integer j=0;j<1012;j=j+1) begin
-			correctOutputs[j] = 0; 	
-	end
-	*/
-    //compute the reference values
-    /* 	
-    for(Integer j=0;j<100;j=j+1) begin
-		for(Integer k=0; k<valueOf(KERNEL_SIZE); k=k+1) begin
-			correctOutputs[j+valueOf(OFFSET)] = correctOutputs[j+valueOf(OFFSET)]+(kernel[valueOf(KERNEL_SIZE)-1-k]*operations[j+k]); 	
-		end
-	end
-    */
-
+    //test cleanAccel()
+    Reg#(Bit#(32)) clean <- mkReg(0);
 	//count the number of cycles
 	rule cycle_count;
 		cycles <= cycles + 1;
@@ -113,27 +69,34 @@ module mkTbTwoCNA();
         currVec[2] <= operations[2][requests];		
         nna.request(readVReg(currVec));	
 		requests <= requests+1;
-		//$display("Enqueuing into FIFO: %d", 0);
 	endrule	
 	
 	rule respond(!isInit);
 		Bit#(32) outputValue <- nna.response();	
-	    //	$display("Response Produced: %d",outputValue);
-		/*	
-		if(correctOutputs[requests] == outputValue) begin
-			$display("PASS");
-		end
-        */		
-        //$display("Was value ready? : %d", nna.isReady());	
 		$display("Response Produced: %d and CC: ", outputValue, requests);
-		//Bit#(32) temp = correctOutputs[requests];
-		//$display("Actual: %d", temp);
 
 	endrule	
 	
 	rule finish(requests==10);
 		$display("Total number of cycles needed: %d",cycles);
-		$finish(0);
+		$display("Resetting...Starting over...");
+        
+        isInit <= True;
+        nna.cleanAccel();
+        requests <= 0;
+        clean <= 1;
 	endrule
+    
+    rule cleanUp(clean == 1 && requests < 11);
+        currVec[0] <= operations[0][requests];		
+        currVec[1] <= operations[1][requests];		
+        currVec[2] <= operations[2][requests];		
+        nna.request(readVReg(currVec));	
+		requests <= requests+1;
 
+    endrule
+    rule finish2(requests==10 && clean == 1);
+        $finish(0); 
+    endrule
+    
 endmodule
