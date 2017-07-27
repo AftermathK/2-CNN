@@ -2,7 +2,7 @@ package TwoCNA;
 import Vector::*;
 import SpecialFIFOs::*;
 import FIFOF::*;
-typedef 4 WAIT_TIME;
+typedef 0 WAIT_TIME;
 //streamSize must always be the product of the kernel's dimensions
 interface TwoCNA#(type operandType, numeric type kernelSize, numeric type streamSize);
     method Action cleanAccel(); 
@@ -87,10 +87,11 @@ module mkTwoCNA(TwoCNA#(operandType, kernelSize,streamSize)) provisos (Bits#(ope
 
     //clear() each FIFO
     method Action cleanAccel();
-        
+        /* 
 	    if(currWait == fromInteger(valueOf(WAIT_TIME))) begin
 			currWait <= 0;
-		end		                
+		end
+        */
         //clear the horizontal stream's FIFOs
         for(Integer i=0; i<valueOf(streamSize);i=i+1) begin
             horizontalStream[i].clear();
@@ -118,6 +119,7 @@ module mkTwoCNA(TwoCNA#(operandType, kernelSize,streamSize)) provisos (Bits#(ope
 		for(Integer i=0; i<valueOf(kernelSize)*valueOf(kernelSize); i=i+1) begin
 			horizontalStream[i].enq(0);
 		end		
+         
 	endmethod            
         //methods for interaction with accelerator
 	method operandType isReady();

@@ -43,6 +43,7 @@ module mkTCNWMem#(CoarseMemServerPort#(32,2) mem)(CoarseMemServerPort#(32,2));
     Reg#(Bit#(32)) inputPointerReg <- mkReg(0); 
     Reg#(Bit#(32)) inputLengthReg <- mkReg(0); 
     Reg#(Bit#(32)) inputRowLengthReg <- mkReg(0); 
+    Reg#(Bit#(32)) inputColLengthReg <- mkReg(0); 
     //length of the row with zeros padded (inputRowLengthReg+2) 
     Reg#(Bit#(32)) actualRowLength <- mkReg(0); 
     //number columns in the data 
@@ -89,23 +90,20 @@ module mkTCNWMem#(CoarseMemServerPort#(32,2) mem)(CoarseMemServerPort#(32,2));
     
     //(* descending_urgency = "writeMemResp, readMemReq" *) 
     //reset BRAMs
-    rule resetRAMS(counterRAM < 1024);
-        $display("Resetting BRAMs");
+    rule resetRAMS(counterRAM <= inputRowLengthReg+2);
+        //$display("Resetting BRAMs");
         memElemOne.request.enq(CoarseMemReq{write: True, addr: 4*counterRAM, data: 0}); 
         memElemTwo.request.enq(CoarseMemReq{write: True, addr: 4*counterRAM, data: 0}); 
         memElemThree.request.enq(CoarseMemReq{write: True, addr: 4*counterRAM, data: 0});
         counterRAM <= counterRAM+1;
-        if(counterRAM==1023) begin
+        if(counterRAM==inputRowLengthReg+2) begin
             isInit <= 1;
-            $display("-----------------------------");
-            $display("-----------------------------");
-            $display("-----------------------------");
         end
     endrule
     
     //send requests to read from memory
     rule readMemReq(memRequests != dataSize && isInit==1 && valueFromMem.isLessThan(4));
-        $display("Sending a memory request");
+        //$display("Sending a memory request");
         mem.request.enq(CoarseMemReq  {write: False, addr: inputPointerReg, data: 0});
         memRequests <= memRequests+1;
         //increment the address of the current pointer to prepare for the next read
@@ -113,14 +111,14 @@ module mkTCNWMem#(CoarseMemServerPort#(32,2) mem)(CoarseMemServerPort#(32,2));
         //memReadRequests <= memReadRequests+1;
     endrule
     //feed value read from memory or feed zeros 
-    rule readMemResp((mem.response.first.write == False && isInit==1)||(fifoColCounter >= actualColLength));
+    rule readMemResp((mem.response.first.write == False && isInit==1)||(fifoColCounter >= actualColLength && fifoColCounter < actualColLength+2));
         if(fifoColCounter >= actualColLength) begin
-            $display("Enqueuing zeros");
+            //$display("Enqueuing zeros");
             valueFromMem.enq(0);
         end
         else if(fifoRowCounter >= inputRowLengthReg) begin
             //feed zeros
-            $display("Enqueuing zeros");
+            //$display("Enqueuing zeros");
             valueFromMem.enq(0);
             if(fifoRowCounter == inputRowLengthReg+1) begin
                 fifoRowCounter <= 0; 
@@ -131,7 +129,7 @@ module mkTCNWMem#(CoarseMemServerPort#(32,2) mem)(CoarseMemServerPort#(32,2));
         end
         else begin
             //feed values read from memory 
-            $display("Enqueuing value read from mem");
+            //$display("Enqueuing value read from mem");
             valueFromMem.enq(mem.response.first.data);
             mem.response.deq();
             fifoRowCounter <= fifoRowCounter+1; 
@@ -143,19 +141,19 @@ module mkTCNWMem#(CoarseMemServerPort#(32,2) mem)(CoarseMemServerPort#(32,2));
         
         if(readValueUpNext == 0) begin
             //enqueue the request to read from memory
-            $display("Reading memElemOne and memElemTwo"); 
+            //$display("Reading memElemOne and memElemTwo"); 
             memElemOne.request.enq(CoarseMemReq{write: False, addr: rowCounter, data: 0});	
             memElemTwo.request.enq(CoarseMemReq{write: False, addr: rowCounter , data: 0});	
         end
         else if(readValueUpNext == 1) begin
             //enqueue the request to read from memory
-            $display("Reading memElemTwo and memElemThree"); 
+            //$display("Reading memElemTwo and memElemThree"); 
             memElemTwo.request.enq(CoarseMemReq{write: False, addr: rowCounter, data: 0});	
             memElemThree.request.enq(CoarseMemReq{write: False, addr: rowCounter , data: 0});	
         end
         else begin
             //enqueue the request to read from memory
-            $display("Reading memElemOne and memElemThree"); 
+            //$display("Reading memElemOne and memElemThree"); 
             memElemOne.request.enq(CoarseMemReq{write: False, addr: rowCounter, data: 0});	
             memElemThree.request.enq(CoarseMemReq{write: False, addr: rowCounter , data: 0});	
         end
@@ -165,7 +163,7 @@ module mkTCNWMem#(CoarseMemServerPort#(32,2) mem)(CoarseMemServerPort#(32,2));
 	endrule
     //change rows
     rule nextRowReq(readRam == actualRowLength && isInit==1);
-        $display("Switching from one read state to another"); 
+        //$display("Switching from one read state to another"); 
         //$display("Current number of values left: %d %d", memResponses, inputLengthReg); 
         //$display("fifoColCounter: %d and actualColLength: %d", fifoColCounter, actualColLength); 
         //$display("accelRequests: %d and actualRowLength: %d", accelRequests, actualRowLength); 
@@ -175,7 +173,7 @@ module mkTCNWMem#(CoarseMemServerPort#(32,2) mem)(CoarseMemServerPort#(32,2));
         readValueUpNext <= (readValueUpNext+1)%3;
     endrule
     rule nextRowAccel(accelRequests == actualRowLength && isInit==1);
-        $display("Switching from one accelerator state to another"); 
+        //$display("Switching from one accelerator state to another"); 
         accelCounter <= 0;
         accelRequests <= 0;
         accelValueUpNext <= (accelValueUpNext+1)%3;
@@ -187,7 +185,7 @@ module mkTCNWMem#(CoarseMemServerPort#(32,2) mem)(CoarseMemServerPort#(32,2));
             let valueOne = memElemOne.response.first.data;
             let valueTwo = memElemTwo.response.first.data;
             let valueThree = valueFromMem.first;
-            $display("One: Sending to accel %d %d %d", valueOne,valueTwo,valueThree);
+            //$display("One: Sending to accel %d %d %d", valueOne,valueTwo,valueThree);
             valueFromMem.deq();
             memElemOne.response.deq();
             memElemTwo.response.deq();
@@ -203,7 +201,7 @@ module mkTCNWMem#(CoarseMemServerPort#(32,2) mem)(CoarseMemServerPort#(32,2));
             let valueOne = memElemTwo.response.first.data;
             let valueTwo = memElemThree.response.first.data;
             let valueThree = valueFromMem.first;
-            $display("Two: Sending to accel %d %d %d", valueOne,valueTwo,valueThree);
+            //$display("Two: Sending to accel %d %d %d", valueOne,valueTwo,valueThree);
             valueFromMem.deq();
             memElemTwo.response.deq();
             memElemThree.response.deq();
@@ -219,7 +217,7 @@ module mkTCNWMem#(CoarseMemServerPort#(32,2) mem)(CoarseMemServerPort#(32,2));
             let valueOne = memElemThree.response.first.data;
             let valueTwo = memElemOne.response.first.data;
             let valueThree = valueFromMem.first;
-            $display("Three: Sending to accel %d %d %d", valueOne,valueTwo,valueThree);
+            //$display("Three: Sending to accel %d %d %d", valueOne,valueTwo,valueThree);
             valueFromMem.deq();
             memElemThree.response.deq();
             memElemOne.response.deq();
@@ -238,8 +236,9 @@ module mkTCNWMem#(CoarseMemServerPort#(32,2) mem)(CoarseMemServerPort#(32,2));
     //write accelerator's output to memory
     rule writeMemReq(memResponses != inputSize && isInit==1);
 		let responseProduced <- accelOne.response();
-        $display("");
-        $display("Value written to mem: %d",responseProduced);
+        //$display("");
+        //$display("Value written to mem: %d",responseProduced);
+        //$display("Values left: %d", inputLengthReg);
 		//enqueue the request to write to memory, but disregard any return values--if any
         mem.request.enq(CoarseMemReq {write: True, addr: outputPointerReg, data: responseProduced});
         //increment the address of the current pointer to prepare for the next write
@@ -276,11 +275,11 @@ module mkTCNWMem#(CoarseMemServerPort#(32,2) mem)(CoarseMemServerPort#(32,2));
             if (x == 1) begin
                 counterRAM <= 0; 
                 //how many values are we convolving
-                dataSize <= inputRowLengthReg*(inputLengthReg/inputRowLengthReg); 
-                inputSize <= (inputRowLengthReg+2)*((inputLengthReg/inputRowLengthReg) + 2)+2;
-                inputLengthReg <= (inputRowLengthReg+2)*((inputLengthReg/inputRowLengthReg) + 2)+2;
+                dataSize <= inputRowLengthReg*(inputColLengthReg); 
+                inputSize <= (inputRowLengthReg+2)*(inputColLengthReg + 2);
+                inputLengthReg <= (inputRowLengthReg+2)*(inputColLengthReg + 2);
                 actualRowLength <= inputRowLengthReg+2;
-                actualColLength <= inputLengthReg/inputRowLengthReg;
+                actualColLength <= inputColLengthReg;
                 Vector#(3, Vector#(3, OperandType)) tempKernel;
                 tempKernel[0] = readVReg(kernel[0]);
                 tempKernel[1] = readVReg(kernel[1]);
@@ -309,7 +308,8 @@ module mkTCNWMem#(CoarseMemServerPort#(32,2) mem)(CoarseMemServerPort#(32,2));
                                     inputPointerReg,
                                     inputRowLengthReg,
                                     inputLengthReg, 
-                                    outputPointerReg));
+                                    outputPointerReg,
+                                    inputColLengthReg));
 
     return memoryInterface;
 endmodule
