@@ -64,26 +64,26 @@ module mkTbTwoCNA();
 		isInit <= False;	
 		nna.initHorizontal(kernel);	
 	endrule	
-	rule request(!isInit && clean==0);
-        if(requests>= 0 && requests <=8) begin
+	rule request(!isInit && clean==0&&(requests>= 0 && requests <=8));
             currVec[0] <= operations[0][requests];		
             currVec[1] <= operations[1][requests];		
             currVec[2] <= operations[2][requests];
+            //$display("Current value for requests: %d",requests);
+            //$display("Current value for CC: %d",cycles);
             nna.request(readVReg(currVec));	
 		    requests <= requests+1;
             count <= count + 1;
-        end
-        else begin
+	endrule	
+	rule request2(!isInit && clean==0&&!(requests>= 0 && requests <=8));
             nna.cleanAccel();
             clean <= 1;
             requests <= 0;
             isInit <= True;
-        end
 	endrule	
 	
 	rule respond(!isInit);
 		Bit#(32) outputValue <- nna.response();	
-		$display("Response Produced: %d and CC: ", outputValue, requests);
+		$display("Response Produced: %d and CC: ", outputValue, cycles);
 
 	endrule	
 	
